@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Clariti Privacy Review Workbench</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header>
+    <h1>Clariti Privacy Review Workbench</h1>
+    <p id="persistent-notice"></p>
+  </header>
+  <main>
+    <section class="panel" aria-labelledby="checklist-heading">
+      <h2 id="checklist-heading">Checklist and scope</h2>
+      <form id="review-form">
+        <label for="website">Website URL</label>
+        <input id="website" type="url" required placeholder="https://example.com">
+        <label for="scope">Review scope</label>
+        <textarea id="scope" required maxlength="2000"
+          placeholder="Pages, audience, and evidence scope"></textarea>
+        <button type="submit">Create review</button>
+      </form>
+      <label for="review-select">Open review</label>
+      <select id="review-select"><option value="">Select a review</option></select>
+      <h3>Checklist</h3>
+      <div id="checklist" class="list" aria-live="polite"></div>
+      <details>
+        <summary>Edit template (new version only)</summary>
+        <p>Only fixed capture recipes are accepted. Existing reviews retain their snapshot.</p>
+        <label for="checklist-json">Validated checklist JSON</label>
+        <textarea id="checklist-json" rows="12"></textarea>
+        <button id="save-template" type="button">Save new version</button>
+      </details>
+    </section>
+
+    <section class="panel" aria-labelledby="evidence-heading">
+      <h2 id="evidence-heading">Evidence</h2>
+      <p>Website HTML is shown only as inert text. Review uploads before storing them.</p>
+      <form id="text-evidence-form">
+        <label for="evidence-text">Extracted text or notes</label>
+        <textarea id="evidence-text" required maxlength="100000"></textarea>
+        <label for="text-source-url">Source URL (optional)</label>
+        <input id="text-source-url" type="url">
+        <label for="text-limitations">Capture limitations</label>
+        <textarea id="text-limitations" maxlength="2000"></textarea>
+        <button type="submit">Add text evidence</button>
+      </form>
+      <form id="screenshot-form">
+        <label for="screenshot">Reviewed screenshot (PNG or JPEG, max 10 MiB)</label>
+        <input id="screenshot" type="file" accept="image/png,image/jpeg" required>
+        <label for="screenshot-source-url">Source URL (optional)</label>
+        <input id="screenshot-source-url" type="url">
+        <label for="screenshot-limitations">Capture limitations</label>
+        <textarea id="screenshot-limitations" maxlength="2000"></textarea>
+        <label class="checkbox">
+          <input id="reviewed-confirmation" type="checkbox" required>
+          I reviewed this file for necessary redaction before storage.
+        </label>
+        <button type="submit">Add screenshot</button>
+      </form>
+      <h3>Stored evidence</h3>
+      <div id="evidence-list" class="list" aria-live="polite"></div>
+    </section>
+
+    <section class="panel" aria-labelledby="findings-heading">
+      <h2 id="findings-heading">Draft findings and reviewer controls</h2>
+      <p>Companion handoff, finding import, edits, sign-off, and reports are Milestones 2–3.</p>
+      <h3>Companion configuration</h3>
+      <form id="settings-form">
+        <label for="companion-name">Companion name</label>
+        <input id="companion-name" required maxlength="120">
+        <label for="companion-url">Companion URL</label>
+        <input id="companion-url" type="url" required maxlength="2048">
+        <div class="button-row">
+          <button type="submit">Save Companion</button>
+          <button id="reset-companion" type="button">Reset to default</button>
+          <button id="open-companion" type="button">Open Companion</button>
+        </div>
+      </form>
+      <h3>Manual Companion handoff</h3>
+      <p>Uploading evidence to Companion is external processing. Review attachments before manual upload.</p>
+      <label class="checkbox">
+        <input id="handoff-confirmation" type="checkbox">
+        I reviewed/redacted selected evidence and understand upload is external.
+      </label>
+      <div class="button-row">
+        <button id="prepare-handoff" type="button">Prepare handoff</button>
+        <button id="copy-prompt" type="button">Copy review prompt</button>
+        <button id="download-attachments" type="button">Download reviewed evidence files</button>
+      </div>
+      <label for="handoff-prompt">Review prompt</label>
+      <textarea id="handoff-prompt" rows="8" readonly></textarea>
+      <label for="companion-response">Paste Companion raw JSON result</label>
+      <textarea id="companion-response" rows="8"></textarea>
+      <button id="import-response" type="button">Paste/import Companion results</button>
+      <div id="draft-findings" class="list" aria-live="polite"></div>
+      <aside>
+        <h3>What this tool cannot verify</h3>
+        <ul>
+          <li>Overall legal compliance or certification.</li>
+          <li>Tracking behaviour from screenshots or script references alone.</li>
+          <li>Internal controls without authorized evidence.</li>
+          <li>Visual prominence from HTML controls alone.</li>
+        </ul>
+      </aside>
+    </section>
+  </main>
+  <p id="status" role="status" aria-live="polite"></p>
+  <script src="/static/app.js"></script>
+</body>
+</html>

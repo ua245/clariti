@@ -1,0 +1,75 @@
+{
+  "version": "1.0",
+  "items": [
+    {
+      "id": "privacy-link-present",
+      "category": "Privacy notice",
+      "question": "Is a privacy link present in supplied evidence?",
+      "evidence_needed": ["Screenshot or extracted page text showing a labelled privacy link."],
+      "externally_verifiable": true,
+      "assessment_criteria": ["Evidence shows a labelled privacy link.", "Link presence does not establish notice completeness."],
+      "candidate_url_keywords": ["privacy", "privacy-policy"],
+      "capture_recipe": "manual_screenshot"
+    },
+    {
+      "id": "privacy-notice-content",
+      "category": "Privacy notice",
+      "question": "Has privacy notice content been captured?",
+      "evidence_needed": ["Captured text or screenshot of the privacy notice."],
+      "externally_verifiable": true,
+      "assessment_criteria": ["Content is present in supplied evidence.", "Missing content is Not verified, not Fail."],
+      "candidate_url_keywords": ["privacy", "privacy-policy"],
+      "capture_recipe": "manual_text"
+    },
+    {
+      "id": "cookie-notice-settings",
+      "category": "Cookies",
+      "question": "Is a cookie notice or settings entry present?",
+      "evidence_needed": ["Screenshot or extracted text showing the notice or settings entry."],
+      "externally_verifiable": true,
+      "assessment_criteria": ["Evidence shows a cookie notice or settings entry.", "HTML controls alone do not prove visual prominence."],
+      "candidate_url_keywords": ["cookie", "consent", "privacy"],
+      "capture_recipe": "manual_screenshot"
+    },
+    {
+      "id": "initial-consent-interface",
+      "category": "Cookies",
+      "question": "Has the initial consent interface been captured?",
+      "evidence_needed": ["Initial-page screenshot or manual evidence description."],
+      "externally_verifiable": true,
+      "assessment_criteria": ["Evidence identifies initial interface state.", "Screenshots do not establish tracking behaviour."],
+      "candidate_url_keywords": ["cookie", "consent"],
+      "capture_recipe": "manual_screenshot"
+    },
+    {
+      "id": "newsletter-form-information",
+      "category": "Forms",
+      "question": "Has newsletter form information been captured?",
+      "evidence_needed": ["Screenshot or text showing labels and privacy information near the form."],
+      "externally_verifiable": true,
+      "assessment_criteria": ["Evidence captures observable form labels.", "Do not collect entered values."],
+      "candidate_url_keywords": ["newsletter", "subscribe", "email"],
+      "capture_recipe": "manual_screenshot"
+    },
+    {
+      "id": "tracking-behaviour",
+      "category": "Tracking",
+      "question": "Has tracking behaviour been verified with appropriate evidence?",
+      "evidence_needed": ["Authorized technical evidence with method and limitations."],
+      "externally_verifiable": false,
+      "assessment_criteria": ["Script references do not prove execution.", "Screenshot evidence cannot establish tracking behaviour."],
+      "candidate_url_keywords": ["analytics", "tracking", "tag"],
+      "capture_recipe": "authorized_internal_evidence"
+    },
+    {
+      "id": "internal-controls",
+      "category": "Internal controls",
+      "question": "Are internal controls supported by authorized evidence?",
+      "evidence_needed": ["Authorized internal evidence or a specific reason it is unavailable."],
+      "externally_verifiable": false,
+      "assessment_criteria": ["Only authorized internal evidence may support this item.", "Public pages do not establish internal controls."],
+      "candidate_url_keywords": [],
+      "capture_recipe": "authorized_internal_evidence"
+    }
+  ]
+}
