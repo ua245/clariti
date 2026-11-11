@@ -2,11 +2,12 @@
 
 ## Current milestone
 
-Milestone 3: Review and reports.
+Milestone 4: Retrieval and integrations.
 
 ## Current task
 
-Add reviewer edits/history and revision-specific sign-off before CSV/PDF export.
+Complete safe static capture. SiteOne and browser capture remain disabled pending
+verified capabilities and effective destination controls.
 
 ## Implemented
 
@@ -30,6 +31,8 @@ Add reviewer edits/history and revision-specific sign-off before CSV/PDF export.
   duplicate keys, unknown fields, wrong IDs, cross-batch evidence, duplicate
   checklist items, and evidence-free Pass/Fail/Partial.
 - Original imported output and AI draft findings are retained locally.
+- Added offline safe sitemap parsing and public HTTPS allowlist validation
+  primitives. They are not yet exposed as capture endpoints.
 
 ## Files changed
 
@@ -51,13 +54,13 @@ Add reviewer edits/history and revision-specific sign-off before CSV/PDF export.
 
 ## Limitations and blockers
 
-- Project began in an empty folder; no Git repository exists.
-- Reviewer edits, sign-off, CSV/PDF, sitemap/HTTP retrieval, SiteOne, and
-  browser capture remain unimplemented.
+- Reviewer edits, sign-off, CSV/PDF UI and regression tests remain incomplete.
+- Static capture endpoints, SiteOne, and browser capture remain incomplete.
 - SiteOne executable/version and attachment capability limits remain unknown;
   no SiteOne executable has been run.
 
 ## Next action
 
-Add reviewer edit history and approval records. Changes to scope, evidence,
-findings, or checklist must invalidate approval before report generation.
+Add bounded, redirect-safe static retrieval using the policy module, then test
+XML namespaces/gzip and public/private IPv4/IPv6 URL cases. Do not execute
+SiteOne or install Playwright until their controls are verified.

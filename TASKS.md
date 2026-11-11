@@ -25,6 +25,6 @@
 
 ## Milestone 4: Retrieval and integrations
 
-- [ ] Add safe sitemap ingestion and static HTTP evidence capture.
+- [ ] Complete safe sitemap ingestion and static HTTP evidence capture (parser and policy primitives added).
 - [ ] Add verified, constrained SiteOne adapter.
 - [ ] Evaluate and optionally add safe headless-browser capture.
