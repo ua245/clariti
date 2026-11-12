@@ -36,3 +36,11 @@ Manual handoffs persist a batch manifest and schema generated from authoritative
 Pydantic models. Response import accepts raw JSON or one JSON fence only,
 rejects duplicate object keys before validation, and never repairs model output.
 The application stores original output separately from draft findings.
+
+## 2026-11-12: Constrained Playwright capture
+
+Use Playwright Chromium for optional headless capture of the review website
+only. Destination checks require HTTPS, the review host allowlist (including
+www/apex twin), and public resolvable addresses. Capture scrolls for common
+privacy/cookie/consent/newsletter indicators and stores local screenshots plus
+a text summary. It does not follow off-host links or automate Companion chat.

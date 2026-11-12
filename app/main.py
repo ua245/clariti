@@ -1,33 +1,29 @@
-import os
 import secrets
 from pathlib import Path
 from urllib.parse import urlsplit
 from uuid import uuid4
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, JSONResponse
-from fastapi.responses import Response
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.checklist.service import load_default_template
 from app.checklist.models import ChecklistTemplate
+from app.checklist.service import load_default_template
 from app.companions.manual import ManualCompanionConnector, ResponseValidationError
 from app.companions.models import Status
-from app.config import (
-    ALLOWED_HOST,
-    DEFAULT_COMPANION_NAME,
-    DEFAULT_COMPANION_URL,
-    PORT,
-    STATIC_DIR,
-)
+from app.config import ALLOWED_HOST, PORT, STATIC_DIR
 from app.evidence.service import (
+    add_bytes_screenshot_evidence,
+    add_rendered_text_evidence,
     add_screenshot_evidence,
     add_text_evidence,
     artifact_for_evidence,
 )
+from app.export.reports import csv_report, effective_findings, pdf_report
+from app.fetch.browser_capture import capture_privacy_indicators
+from app.fetch.network_policy import NetworkPolicyError
 from app.storage.db import Database
-from app.export.reports import csv_report, pdf_report
 
 
 class CompanionSettingsInput(BaseModel):
@@ -80,6 +76,12 @@ class ApprovalInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     reviewer_name: str = Field(min_length=1, max_length=200)
+
+
+class CaptureWebsiteInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    confirmed: bool
 
 
 def validate_navigation_url(value: str) -> str:
@@ -209,8 +211,7 @@ def create_app(
             raise HTTPException(409, str(error)) from error
         return {"version": payload.version}
 
-    @app.get("/api/reviews/{review_id}")
-    def get_review(review_id: str) -> dict[str, object]:
+    def load_review(review_id: str) -> dict[str, object]:
         review = database.get_review(review_id)
         if review is None:
             raise HTTPException(404, "Review was not found.")
@@ -220,7 +221,12 @@ def create_app(
         review["current_approval"] = database.current_approval(
             review_id, int(review["revision"])
         )
+        review["effective_findings"] = effective_findings(review)
         return review
+
+    @app.get("/api/reviews/{review_id}")
+    def get_review(review_id: str) -> dict[str, object]:
+        return load_review(review_id)
 
     @app.post("/api/reviews/{review_id}/edits")
     def add_reviewer_edit(
@@ -264,6 +270,8 @@ def create_app(
         if database.latest_companion_import(review_id) is None:
             raise HTTPException(422, "Import draft findings before approval.")
         revision = int(review["revision"])
+        if database.current_approval(review_id, revision) is not None:
+            raise HTTPException(422, "This review revision is already signed off.")
         database.create_approval(f"approval-{uuid4()}", review_id, reviewer_name, revision)
         return {
             "reviewer_name": reviewer_name,
@@ -273,20 +281,24 @@ def create_app(
 
     @app.get("/api/reviews/{review_id}/exports/{format_name}")
     def export_review(review_id: str, format_name: str, final: bool = False) -> Response:
-        review = database.get_review(review_id)
-        if review is None:
-            raise HTTPException(404, "Review was not found.")
-        if final and database.current_approval(review_id, int(review["revision"])) is None:
+        review = load_review(review_id)
+        if final and review["current_approval"] is None:
             raise HTTPException(422, "Final export requires current sign-off.")
         if format_name == "csv":
             return Response(
-                csv_report(review, final), media_type="text/csv",
-                headers={"Content-Disposition": f'attachment; filename="{review_id}.csv"'},
+                csv_report(review, final),
+                media_type="text/csv",
+                headers={
+                    "Content-Disposition": f'attachment; filename="{review_id}.csv"'
+                },
             )
         if format_name == "pdf":
             return Response(
-                pdf_report(review, final), media_type="application/pdf",
-                headers={"Content-Disposition": f'attachment; filename="{review_id}.pdf"'},
+                pdf_report(review, final),
+                media_type="application/pdf",
+                headers={
+                    "Content-Disposition": f'attachment; filename="{review_id}.pdf"'
+                },
             )
         raise HTTPException(404, "Export format was not found.")
 
@@ -380,6 +392,59 @@ def create_app(
         return {
             "import_id": import_id,
             "findings": [finding.model_dump(mode="json") for finding in response.findings],
+        }
+
+    @app.post("/api/reviews/{review_id}/capture")
+    async def capture_website(
+        review_id: str, payload: CaptureWebsiteInput, request: Request
+    ) -> dict[str, object]:
+        require_state_change_protection(request)
+        if not payload.confirmed:
+            raise HTTPException(
+                422,
+                "Confirm that you authorize headless capture of the review website.",
+            )
+        review = database.get_review(review_id)
+        if review is None:
+            raise HTTPException(404, "Review was not found.")
+        website = str(review["website"])
+        try:
+            result = await capture_privacy_indicators(website)
+        except NetworkPolicyError as error:
+            raise HTTPException(422, str(error)) from error
+        except RuntimeError as error:
+            raise HTTPException(503, str(error)) from error
+        except Exception as error:
+            raise HTTPException(
+                502, f"Website capture failed: {error.__class__.__name__}."
+            ) from error
+
+        evidence_ids: list[str] = []
+        summary_id = add_rendered_text_evidence(
+            database,
+            review_id,
+            result.summary_text,
+            result.final_url,
+            result.limitations,
+        )
+        evidence_ids.append(summary_id)
+        for shot in result.shots:
+            note = f"{shot.note} {result.limitations}".strip()
+            evidence_ids.append(
+                add_bytes_screenshot_evidence(
+                    database,
+                    review_id,
+                    shot.png_bytes,
+                    shot.source_url,
+                    note,
+                )
+            )
+        return {
+            "final_url": result.final_url,
+            "page_title": result.page_title,
+            "evidence_ids": evidence_ids,
+            "screenshot_count": len(result.shots),
+            "limitations": result.limitations,
         }
 
     @app.post("/api/reviews/{review_id}/evidence/text")

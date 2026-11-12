@@ -7,7 +7,7 @@
 - [x] Add create/open reviews and immutable checklist snapshots.
 - [x] Add versioned editable checklist template.
 - [x] Add manual text evidence and reviewed screenshot upload.
-- [x] Add accessible three-column UI.
+- [x] Add accessible local UI.
 - [x] Add offline tests for Milestone 1.
 
 ## Milestone 2: Companion round trip
@@ -19,12 +19,12 @@
 
 ## Milestone 3: Review and reports
 
-- [ ] Add reviewer edits, history, and revision-specific sign-off.
-- [ ] Add CSV and PDF draft/final exports.
-- [ ] Add security and regression tests.
+- [x] Add reviewer edits, history, and revision-specific sign-off.
+- [x] Add CSV and PDF draft/final exports.
+- [x] Add security and regression tests.
 
 ## Milestone 4: Retrieval and integrations
 
+- [x] Add constrained headless-browser capture for privacy indicators.
 - [ ] Complete safe sitemap ingestion and static HTTP evidence capture (parser and policy primitives added).
 - [ ] Add verified, constrained SiteOne adapter.
-- [ ] Evaluate and optionally add safe headless-browser capture.

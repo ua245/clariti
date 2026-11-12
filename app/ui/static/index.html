@@ -3,111 +3,184 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Clariti Privacy Review Workbench</title>
+  <title>Clariti</title>
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
   <header>
-    <h1>Clariti Privacy Review Workbench</h1>
-    <p id="persistent-notice"></p>
+    <div>
+      <h1>Clariti</h1>
+      <p class="tagline">Local privacy review workbench</p>
+    </div>
+    <p id="persistent-notice" class="notice"></p>
   </header>
-  <main>
-    <section class="panel" aria-labelledby="checklist-heading">
-      <h2 id="checklist-heading">Checklist and scope</h2>
-      <form id="review-form">
-        <label for="website">Website URL</label>
-        <input id="website" type="url" required placeholder="https://example.com">
-        <label for="scope">Review scope</label>
-        <textarea id="scope" required maxlength="2000"
-          placeholder="Pages, audience, and evidence scope"></textarea>
-        <button type="submit">Create review</button>
-      </form>
-      <label for="review-select">Open review</label>
-      <select id="review-select"><option value="">Select a review</option></select>
-      <h3>Checklist</h3>
-      <div id="checklist" class="list" aria-live="polite"></div>
-      <details>
-        <summary>Edit template (new version only)</summary>
-        <p>Only fixed capture recipes are accepted. Existing reviews retain their snapshot.</p>
-        <label for="checklist-json">Validated checklist JSON</label>
-        <textarea id="checklist-json" rows="12"></textarea>
-        <button id="save-template" type="button">Save new version</button>
-      </details>
-    </section>
 
+  <p id="status" role="status" aria-live="polite"></p>
+
+  <section class="panel review-bar" aria-labelledby="reviews-heading">
+    <div class="review-bar-row">
+      <div>
+        <h2 id="reviews-heading">Review</h2>
+        <label for="review-select">Open existing</label>
+        <select id="review-select">
+          <option value="">Select a review</option>
+        </select>
+      </div>
+      <details id="new-review-panel">
+        <summary>Create new review</summary>
+        <form id="review-form">
+          <label for="website">Website URL</label>
+          <input id="website" type="url" required placeholder="https://example.com">
+          <label for="scope">Review scope</label>
+          <textarea id="scope" required maxlength="2000"
+            placeholder="Pages, audience, and evidence scope"></textarea>
+          <h3>Checklist items</h3>
+          <div id="checklist" class="list checklist-grid" aria-live="polite"></div>
+          <button type="submit">Create review</button>
+        </form>
+        <details class="nested">
+          <summary>Advanced: new checklist version</summary>
+          <p>Existing reviews keep their snapshot. Only valid capture recipes are accepted.</p>
+          <label for="checklist-json">Checklist JSON</label>
+          <textarea id="checklist-json" rows="10"></textarea>
+          <button id="save-template" type="button">Save new version</button>
+        </details>
+      </details>
+    </div>
+    <p id="active-review-meta" class="meta" hidden></p>
+  </section>
+
+  <main id="workspace" hidden>
     <section class="panel" aria-labelledby="evidence-heading">
-      <h2 id="evidence-heading">Evidence</h2>
-      <p>Website HTML is shown only as inert text. Review uploads before storing them.</p>
-      <form id="text-evidence-form">
-        <label for="evidence-text">Extracted text or notes</label>
-        <textarea id="evidence-text" required maxlength="100000"></textarea>
+      <h2 id="evidence-heading">1. Evidence</h2>
+      <p class="hint">Scan the review website automatically, or add manual text/screenshots. Captured page content is stored as text or images, never rendered as HTML.</p>
+
+      <div class="stack capture-box">
+        <h3>Auto scan</h3>
+        <p class="hint">Opens the review URL in a headless browser, scrolls for privacy / cookie / consent / newsletter indicators, and saves screenshots plus a findings summary.</p>
+        <label class="checkbox">
+          <input id="capture-confirmation" type="checkbox">
+          I authorize Clariti to visit this review website and store local screenshots/text.
+        </label>
+        <button id="capture-website" type="button">Scan website for privacy indicators</button>
+      </div>
+
+      <details>
+        <summary>Add evidence manually</summary>
+      <form id="text-evidence-form" class="stack">
+        <label for="evidence-text">Text notes</label>
+        <textarea id="evidence-text" required maxlength="100000" rows="4"></textarea>
         <label for="text-source-url">Source URL (optional)</label>
-        <input id="text-source-url" type="url">
-        <label for="text-limitations">Capture limitations</label>
-        <textarea id="text-limitations" maxlength="2000"></textarea>
-        <button type="submit">Add text evidence</button>
+        <input id="text-source-url" type="url" placeholder="https://…">
+        <label for="text-limitations">Limitations</label>
+        <input id="text-limitations" maxlength="2000" placeholder="What this capture cannot prove">
+        <button type="submit">Add text</button>
       </form>
-      <form id="screenshot-form">
-        <label for="screenshot">Reviewed screenshot (PNG or JPEG, max 10 MiB)</label>
+
+      <form id="screenshot-form" class="stack">
+        <label for="screenshot">Screenshot (PNG/JPEG, max 10 MiB)</label>
         <input id="screenshot" type="file" accept="image/png,image/jpeg" required>
         <label for="screenshot-source-url">Source URL (optional)</label>
         <input id="screenshot-source-url" type="url">
-        <label for="screenshot-limitations">Capture limitations</label>
-        <textarea id="screenshot-limitations" maxlength="2000"></textarea>
+        <label for="screenshot-limitations">Limitations</label>
+        <input id="screenshot-limitations" maxlength="2000">
         <label class="checkbox">
           <input id="reviewed-confirmation" type="checkbox" required>
-          I reviewed this file for necessary redaction before storage.
+          I reviewed this file for necessary redaction.
         </label>
         <button type="submit">Add screenshot</button>
       </form>
+      </details>
+
       <h3>Stored evidence</h3>
       <div id="evidence-list" class="list" aria-live="polite"></div>
     </section>
 
     <section class="panel" aria-labelledby="findings-heading">
-      <h2 id="findings-heading">Draft findings and reviewer controls</h2>
-      <p>Companion handoff, finding import, edits, sign-off, and reports are Milestones 2–3.</p>
-      <h3>Companion configuration</h3>
-      <form id="settings-form">
-        <label for="companion-name">Companion name</label>
-        <input id="companion-name" required maxlength="120">
-        <label for="companion-url">Companion URL</label>
-        <input id="companion-url" type="url" required maxlength="2048">
+      <h2 id="findings-heading">2. Companion &amp; findings</h2>
+
+      <details id="companion-settings">
+        <summary>Companion settings</summary>
+        <form id="settings-form" class="stack">
+          <label for="companion-name">Name</label>
+          <input id="companion-name" required maxlength="120">
+          <label for="companion-url">HTTPS URL</label>
+          <input id="companion-url" type="url" required maxlength="2048">
+          <div class="button-row">
+            <button type="submit">Save</button>
+            <button id="reset-companion" type="button" class="secondary">Reset default</button>
+            <button id="open-companion" type="button" class="secondary">Open</button>
+          </div>
+        </form>
+      </details>
+
+      <div class="stack">
+        <label class="checkbox">
+          <input id="handoff-confirmation" type="checkbox">
+          Evidence reviewed/redacted; I understand upload is external processing.
+        </label>
         <div class="button-row">
-          <button type="submit">Save Companion</button>
-          <button id="reset-companion" type="button">Reset to default</button>
-          <button id="open-companion" type="button">Open Companion</button>
+          <button id="prepare-handoff" type="button">Prepare handoff</button>
+          <button id="copy-prompt" type="button" class="secondary">Copy prompt</button>
+          <button id="download-attachments" type="button" class="secondary">Download files</button>
         </div>
-      </form>
-      <h3>Manual Companion handoff</h3>
-      <p>Uploading evidence to Companion is external processing. Review attachments before manual upload.</p>
-      <label class="checkbox">
-        <input id="handoff-confirmation" type="checkbox">
-        I reviewed/redacted selected evidence and understand upload is external.
-      </label>
-      <div class="button-row">
-        <button id="prepare-handoff" type="button">Prepare handoff</button>
-        <button id="copy-prompt" type="button">Copy review prompt</button>
-        <button id="download-attachments" type="button">Download reviewed evidence files</button>
+        <label for="handoff-prompt">Review prompt</label>
+        <textarea id="handoff-prompt" rows="6" readonly></textarea>
+        <label for="companion-response">Paste Companion JSON</label>
+        <textarea id="companion-response" rows="6" placeholder='{"schema_version":"1.0", ...}'></textarea>
+        <button id="import-response" type="button">Import results</button>
       </div>
-      <label for="handoff-prompt">Review prompt</label>
-      <textarea id="handoff-prompt" rows="8" readonly></textarea>
-      <label for="companion-response">Paste Companion raw JSON result</label>
-      <textarea id="companion-response" rows="8"></textarea>
-      <button id="import-response" type="button">Paste/import Companion results</button>
+
+      <h3>Draft findings</h3>
       <div id="draft-findings" class="list" aria-live="polite"></div>
+
+      <h3>Reviewer edit</h3>
+      <form id="edit-form" class="stack">
+        <label for="edit-checklist">Checklist item</label>
+        <select id="edit-checklist" required></select>
+        <label for="edit-status">Status</label>
+        <select id="edit-status" required>
+          <option>Pass</option>
+          <option>Fail</option>
+          <option>Partial</option>
+          <option>Not verified</option>
+          <option>Blocked</option>
+          <option>Not applicable</option>
+        </select>
+        <label for="edit-notes">Notes</label>
+        <textarea id="edit-notes" maxlength="8000" rows="2"></textarea>
+        <label for="edit-reason">Reason (required)</label>
+        <textarea id="edit-reason" required maxlength="8000" rows="2"></textarea>
+        <label for="edit-evidence">Evidence IDs (comma-separated)</label>
+        <input id="edit-evidence" placeholder="ev-…, ev-…">
+        <button type="submit">Save edit</button>
+      </form>
+
+      <h3>Sign-off &amp; export</h3>
+      <form id="approval-form" class="stack">
+        <label for="reviewer-name">Reviewer display name</label>
+        <input id="reviewer-name" required maxlength="200" autocomplete="name">
+        <button type="submit">Sign off current revision</button>
+      </form>
+      <p id="approval-meta" class="meta"></p>
+      <div class="button-row">
+        <button id="export-csv" type="button" class="secondary">Draft CSV</button>
+        <button id="export-pdf" type="button" class="secondary">Draft PDF</button>
+        <button id="export-csv-final" type="button" class="secondary">Final CSV</button>
+        <button id="export-pdf-final" type="button" class="secondary">Final PDF</button>
+      </div>
+
       <aside>
-        <h3>What this tool cannot verify</h3>
+        <h3>Limits</h3>
         <ul>
-          <li>Overall legal compliance or certification.</li>
-          <li>Tracking behaviour from screenshots or script references alone.</li>
-          <li>Internal controls without authorized evidence.</li>
-          <li>Visual prominence from HTML controls alone.</li>
+          <li>Not legal advice, certification, or a compliance decision.</li>
+          <li>Screenshots and script references do not prove tracking behaviour.</li>
+          <li>Internal controls need authorized evidence.</li>
         </ul>
       </aside>
     </section>
   </main>
-  <p id="status" role="status" aria-live="polite"></p>
+
   <script src="/static/app.js"></script>
 </body>
 </html>

@@ -2,7 +2,7 @@
 
 ## Permanent constraints
 
-- Run locally on Windows with Python 3.10+ and project-local `.venv`.
+- Run locally on Windows, macOS, or Linux with Python 3.10+ and project-local `.venv`.
 - Bind the application only to `127.0.0.1`; never enable permissive CORS.
 - Do not log captured content, personal data, credentials, or secrets.
 - Use parameterized SQLite queries. Treat all captured/imported content as untrusted text.
@@ -25,9 +25,11 @@
 
 ## Commands
 
-```powershell
-.\run.bat
-.\.venv\Scripts\python.exe -m pytest
+```bash
+python3 run.py          # any OS
+./run.sh                # macOS / Linux
+run.bat                 # Windows
+.venv/bin/python -m pytest
 ```
 
 ## Recovery

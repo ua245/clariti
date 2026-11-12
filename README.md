@@ -1,69 +1,82 @@
 # Clariti Website Privacy Review Workbench
 
-Local Windows application for collecting evidence and preparing draft privacy
-review findings. Findings are evidence-based drafts, not legal advice,
-certification, or a compliance decision.
+Local desktop app for collecting evidence and preparing draft privacy review
+findings. Findings are evidence-based drafts, not legal advice, certification,
+or a compliance decision.
+
+Works on Windows, macOS, and Linux with Python 3.10+.
 
 ## Setup and run
 
-Verified local runtime: Python 3.13.9. SiteOne is not yet inspected or
-integrated.
+From the project folder:
 
-```powershell
-cd "C:\Users\umer.ahmed\OneDrive - L'Oréal\Documents\clariti"
-.\run.bat
+```bash
+python3 run.py
 ```
 
-`run.bat` creates `.venv`, installs pinned dependencies only when
+Windows (PowerShell or Command Prompt):
+
+```bat
+run.bat
+```
+
+macOS / Linux:
+
+```bash
+./run.sh
+```
+
+The launcher creates `.venv`, installs pinned dependencies only when
 `requirements.txt` changes, starts Uvicorn on `127.0.0.1:8765`, and opens the
-local browser page. Stop Uvicorn with `Ctrl+C`.
+local browser. Stop with `Ctrl+C`.
+
+Optional: if [uv](https://github.com/astral-sh/uv) is installed, the launcher
+uses it for faster environment setup.
 
 Run tests:
 
-```powershell
-.\.venv\Scripts\python.exe -m pytest
+```bash
+.venv/bin/python -m pytest          # macOS / Linux
+.venv\Scripts\python.exe -m pytest  # Windows
 ```
+
+## Workflow
+
+1. Create a review (website + scope + checklist items).
+2. Click **Scan website for privacy indicators** to open the site in a headless
+   browser, scroll for privacy/cookie/consent/newsletter UI, and store
+   screenshots plus a text summary. You can still add manual evidence.
+3. Prepare a Companion handoff, copy the prompt, upload evidence manually.
+4. Paste the Companion JSON response to import draft findings.
+5. Optionally edit findings, sign off the revision, and export CSV/PDF.
+
+First launch installs Chromium once via Playwright (needs network).
 
 ## Current support
 
 - Persistent editable Companion name and HTTPS navigation URL.
-- Explicit Companion reset to default. Saved values survive restart.
 - Versioned checklist templates and immutable snapshots for new reviews.
+- Automated headless website scan (scroll + screenshots for common privacy UI).
 - Manual text evidence and reviewed PNG/JPEG screenshot upload.
-- Local three-column UI with no CDN, telemetry, or frontend build.
+- Manual Companion handoff, strict JSON import, reviewer edits, sign-off.
+- Draft and final CSV/PDF exports (final requires current sign-off).
+- Local UI with no CDN, telemetry, or frontend build.
 - Host, Origin, and CSRF checks on state-changing endpoints.
+- Capture limited to the review site host (and www twin); private IPs blocked.
 
-## Disabled or not implemented
+## Not implemented
 
-- Companion handoff, response import, findings, reviewer edits, sign-off, CSV,
-  and PDF reporting.
-- Sitemap/HTTP retrieval, SiteOne, and browser capture.
-- SiteOne version and capabilities remain unverified. No executable is run.
+- Full sitemap ingestion and SiteOne integration.
+- Automated Companion login or authenticated chat APIs.
 
 ## Security limitations
 
 Manual evidence is local but may contain personal data. Review and redact
 files before upload. Opening or uploading to the Companion is user-directed
-external processing, not local processing. Captured text is rendered as text,
-never active HTML. This early version does not detect personal data.
+external processing. Captured text is rendered as text, never active HTML.
 
-## Change Companion link
+## Companion link
 
-Use **Companion configuration** in the right column, then select **Save
-Companion**. The app validates HTTPS navigation URLs without embedded
-credentials. **Open Companion** opens only the currently saved URL after a
-user click; it does not fetch or inspect the destination.
-
-## L'OréalGPT access
-
-Authenticate to `gpt.loreal.net` yourself in your normal browser session before
-selecting **Open Companion**. Clariti does not automate login, reuse profiles,
-cookies, SSO tokens, or authenticated chat APIs. Copy the generated prompt and
-upload reviewed evidence manually, then paste raw JSON results back into Clariti.
-
-## Resume interrupted development
-
-Read `AGENTS.md`, `PROJECT_STATE.md`, `TASKS.md`, and `docs\DECISIONS.md`.
-Inspect the working tree if Git is initialized. Resume the first incomplete
-task in `TASKS.md`; update recovery files with exact test results before
-stopping.
+Use **Companion settings** in the findings panel, then **Save**. The app
+validates HTTPS navigation URLs without embedded credentials. **Open** opens
+only the currently saved URL after a user click.
