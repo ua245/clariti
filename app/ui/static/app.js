@@ -187,6 +187,8 @@ function showWorkspace(show) {
 }
 
 async function openReview(reviewId) {
+  stopHitlPoll();
+  setHitlControls(false);
   if (!reviewId) {
     state.activeReview = null;
     activeBatchId = null;
@@ -282,27 +284,187 @@ document.querySelector("#review-select").addEventListener("change", async (event
   }
 });
 
+let hitlPollTimer = null;
+
+function selectedCaptureMode() {
+  return document.querySelector('input[name="capture-mode"]:checked')?.value || "sitemap";
+}
+
+function setHitlControls(active) {
+  document.querySelector("#capture-continue").hidden = !active;
+  document.querySelector("#capture-cancel").hidden = !active;
+  document.querySelector("#capture-hitl-status").hidden = !active;
+  document.querySelector("#capture-website").disabled = active;
+}
+
+function stopHitlPoll() {
+  if (hitlPollTimer) {
+    clearInterval(hitlPollTimer);
+    hitlPollTimer = null;
+  }
+}
+
+function renderHitlStatus(data) {
+  const el = document.querySelector("#capture-hitl-status");
+  const parts = [
+    `HITL status: ${data.status || "unknown"}`,
+    data.page_url ? `URL: ${data.page_url}` : null,
+    data.hint || null,
+    data.error || null,
+  ].filter(Boolean);
+  el.textContent = parts.join(" · ");
+}
+
+async function pollHitlStatus() {
+  if (!state.activeReview) return;
+  try {
+    const data = await request(
+      `/api/reviews/${state.activeReview.review_id}/capture/status`
+    );
+    renderHitlStatus(data);
+    if (data.status === "waiting_for_human") {
+      setHitlControls(true);
+      setStatus(
+        data.hint ||
+          "Complete Cloudflare/login/consent in the browser window, then click Continue."
+      );
+    } else if (["completed", "cancelled", "failed", "idle"].includes(data.status)) {
+      stopHitlPoll();
+      if (data.status !== "waiting_for_human") {
+        setHitlControls(false);
+      }
+      if (data.status === "failed") {
+        setStatus(data.error || "HITL capture failed.", true);
+      }
+    }
+  } catch (error) {
+    stopHitlPoll();
+    setHitlControls(false);
+    setStatus(error.message, true);
+  }
+}
+
 document.querySelector("#capture-website").addEventListener("click", async () => {
   if (!state.activeReview) return setStatus("Open a review first.", true);
   const button = document.querySelector("#capture-website");
+  const mode = selectedCaptureMode();
   try {
     button.disabled = true;
-    setStatus("Scanning website… this can take up to a minute.");
+    stopHitlPoll();
+    if (mode === "hitl" || mode === "sitemap") {
+      setStatus(
+        mode === "sitemap"
+          ? "Opening headed browser for full sitemap scrape…"
+          : "Opening headed browser for human-assisted capture…"
+      );
+      const result = await request(`/api/reviews/${state.activeReview.review_id}/capture`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          confirmed: document.querySelector("#capture-confirmation").checked,
+          mode,
+        }),
+      });
+      setHitlControls(true);
+      renderHitlStatus(result);
+      setStatus(
+        result.message ||
+          "Complete Cloudflare/login/consent yourself in the browser, then Continue."
+      );
+      hitlPollTimer = setInterval(pollHitlStatus, 1500);
+      return;
+    }
+    setHitlControls(false);
+    setStatus(
+      mode === "sitemap_headless"
+        ? "Running headless sitemap scrape… this can take several minutes."
+        : "Scanning homepage… this can take up to a minute."
+    );
     const result = await request(`/api/reviews/${state.activeReview.review_id}/capture`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         confirmed: document.querySelector("#capture-confirmation").checked,
+        mode,
       }),
     });
     await openReview(state.activeReview.review_id);
-    setStatus(
-      `Scan complete: ${result.screenshot_count} screenshot(s) from ${result.final_url}.`
+    if (mode === "sitemap_headless") {
+      setStatus(
+        `Sitemap scrape complete: ${result.sitemap_url_count || 0} URL(s), ` +
+          `${result.page_text_count || 0} page text(s), ` +
+          `${result.screenshot_count} screenshot(s) from ${result.final_url}.`
+      );
+    } else {
+      setStatus(
+        `Scan complete: ${result.screenshot_count} screenshot(s) from ${result.final_url}.`
+      );
+    }
+  } catch (error) {
+    setHitlControls(false);
+    setStatus(error.message, true);
+  } finally {
+    if (selectedCaptureMode() !== "hitl" || !hitlPollTimer) {
+      button.disabled = false;
+    }
+  }
+});
+
+document.querySelector("#capture-continue").addEventListener("click", async () => {
+  if (!state.activeReview) return setStatus("Open a review first.", true);
+  const button = document.querySelector("#capture-continue");
+  try {
+    button.disabled = true;
+    setStatus("Resuming scan with your browser session…");
+    const result = await request(
+      `/api/reviews/${state.activeReview.review_id}/capture/continue`,
+      { method: "POST" }
     );
+    if (result.status === "waiting_for_human") {
+      setHitlControls(true);
+      renderHitlStatus(result);
+      setStatus(
+        result.message ||
+          "Another challenge appeared. Complete it in the browser, then Continue again."
+      );
+      if (!hitlPollTimer) hitlPollTimer = setInterval(pollHitlStatus, 1500);
+      return;
+    }
+    stopHitlPoll();
+    setHitlControls(false);
+    document.querySelector("#capture-website").disabled = false;
+    await openReview(state.activeReview.review_id);
+    if (result.mode === "sitemap") {
+      setStatus(
+        `Headed sitemap scrape complete: ${result.sitemap_url_count || 0} URL(s), ` +
+          `${result.page_text_count || 0} page text(s), ` +
+          `${result.screenshot_count} screenshot(s) from ${result.final_url}.`
+      );
+    } else {
+      setStatus(
+        `HITL scan complete: ${result.screenshot_count} screenshot(s) from ${result.final_url}.`
+      );
+    }
   } catch (error) {
     setStatus(error.message, true);
   } finally {
     button.disabled = false;
+  }
+});
+
+document.querySelector("#capture-cancel").addEventListener("click", async () => {
+  if (!state.activeReview) return setStatus("Open a review first.", true);
+  try {
+    await request(`/api/reviews/${state.activeReview.review_id}/capture/cancel`, {
+      method: "POST",
+    });
+    stopHitlPoll();
+    setHitlControls(false);
+    document.querySelector("#capture-website").disabled = false;
+    document.querySelector("#capture-hitl-status").hidden = true;
+    setStatus("HITL capture cancelled.");
+  } catch (error) {
+    setStatus(error.message, true);
   }
 });
 
@@ -407,7 +569,12 @@ document.querySelector("#prepare-handoff").addEventListener("click", async () =>
     );
     activeBatchId = result.batch_id;
     document.querySelector("#handoff-prompt").value = result.prompt;
-    setStatus("Handoff ready. Copy the prompt and upload reviewed files yourself.");
+    const shots = result.screenshot_count || 0;
+    setStatus(
+      shots
+        ? `Handoff ready with ${shots} screenshot(s). Download the package and upload screenshots/ with the Companion.`
+        : "Handoff ready. Copy the prompt; no screenshots were included."
+    );
   } catch (error) {
     setStatus(error.message, true);
   }
@@ -424,6 +591,12 @@ document.querySelector("#copy-prompt").addEventListener("click", async () => {
   }
 });
 
+document.querySelector("#download-package").addEventListener("click", () => {
+  if (!activeBatchId) return setStatus("Prepare a handoff first.", true);
+  window.location.assign(`/api/handoffs/${encodeURIComponent(activeBatchId)}/package`);
+  setStatus("Downloading handoff zip (prompt + screenshots + text).");
+});
+
 document.querySelector("#download-attachments").addEventListener("click", async () => {
   if (!activeBatchId) return setStatus("Prepare a handoff first.", true);
   try {
@@ -437,7 +610,7 @@ document.querySelector("#download-attachments").addEventListener("click", async 
     }
     setStatus(
       opened
-        ? "Opened screenshot downloads. Copy text evidence from the prompt."
+        ? "Opened screenshot downloads. Prefer the full package zip for Companion upload."
         : "No screenshot files in this handoff. Copy text evidence from the prompt."
     );
   } catch (error) {

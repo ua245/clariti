@@ -12,6 +12,7 @@ from app.checklist.models import ChecklistTemplate
 from app.checklist.service import load_default_template
 from app.companions.manual import ManualCompanionConnector, ResponseValidationError
 from app.companions.models import Status
+from app.companions.package import write_handoff_package
 from app.config import ALLOWED_HOST, PORT, STATIC_DIR
 from app.evidence.service import (
     add_bytes_screenshot_evidence,
@@ -21,8 +22,10 @@ from app.evidence.service import (
     artifact_for_evidence,
 )
 from app.export.reports import csv_report, effective_findings, pdf_report
-from app.fetch.browser_capture import capture_privacy_indicators
+from app.fetch.browser_capture import CaptureMode, CaptureResult, capture_privacy_indicators
+from app.fetch.hitl_jobs import HitlJobStore
 from app.fetch.network_policy import NetworkPolicyError
+from app.fetch.site_capture import SiteCaptureResult, capture_full_site
 from app.storage.db import Database
 
 
@@ -82,6 +85,7 @@ class CaptureWebsiteInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     confirmed: bool
+    mode: CaptureMode = "headless"
 
 
 def validate_navigation_url(value: str) -> str:
@@ -110,7 +114,95 @@ def create_app(
     app = FastAPI(title="Clariti", docs_url=None, redoc_url=None)
     app.state.database = database
     app.state.allowed_host = allowed_host
+    hitl_jobs = HitlJobStore()
+    app.state.hitl_jobs = hitl_jobs
     connector = ManualCompanionConnector()
+
+    def store_capture_result(review_id: str, result: CaptureResult) -> dict[str, object]:
+        evidence_ids: list[str] = []
+        summary_id = add_rendered_text_evidence(
+            database,
+            review_id,
+            result.summary_text,
+            result.final_url,
+            result.limitations,
+        )
+        evidence_ids.append(summary_id)
+        for shot in result.shots:
+            note = f"{shot.note} {result.limitations}".strip()
+            evidence_ids.append(
+                add_bytes_screenshot_evidence(
+                    database,
+                    review_id,
+                    shot.png_bytes,
+                    shot.source_url,
+                    note,
+                )
+            )
+        return {
+            "final_url": result.final_url,
+            "page_title": result.page_title,
+            "evidence_ids": evidence_ids,
+            "screenshot_count": len(result.shots),
+            "page_text_count": 0,
+            "sitemap_url_count": 0,
+            "limitations": result.limitations,
+        }
+
+    def store_site_capture_result(
+        review_id: str, result: SiteCaptureResult
+    ) -> dict[str, object]:
+        evidence_ids: list[str] = []
+        overview_id = add_rendered_text_evidence(
+            database,
+            review_id,
+            result.overview_text(),
+            result.final_url or result.website,
+            result.limitations,
+            capture_method="rendered",
+        )
+        evidence_ids.append(overview_id)
+        sitemap_id = add_rendered_text_evidence(
+            database,
+            review_id,
+            result.sitemap.summary_text(),
+            result.website,
+            result.sitemap.limitations,
+            capture_method="static",
+        )
+        evidence_ids.append(sitemap_id)
+        for page in result.pages:
+            evidence_ids.append(
+                add_rendered_text_evidence(
+                    database,
+                    review_id,
+                    page.text,
+                    page.final_url,
+                    page.limitations,
+                    capture_method="static",
+                    http_status=page.http_status,
+                )
+            )
+        for shot in result.shots:
+            note = f"{shot.note} {result.limitations}".strip()
+            evidence_ids.append(
+                add_bytes_screenshot_evidence(
+                    database,
+                    review_id,
+                    shot.png_bytes,
+                    shot.source_url,
+                    note,
+                )
+            )
+        return {
+            "final_url": result.final_url or result.website,
+            "page_title": result.page_title,
+            "evidence_ids": evidence_ids,
+            "screenshot_count": len(result.shots),
+            "page_text_count": len(result.pages),
+            "sitemap_url_count": len(result.sitemap.page_urls),
+            "limitations": result.limitations,
+        }
 
     @app.middleware("http")
     async def enforce_local_host(request: Request, call_next):
@@ -294,7 +386,7 @@ def create_app(
             )
         if format_name == "pdf":
             return Response(
-                pdf_report(review, final),
+                pdf_report(review, final, artifact_dir=database.artifact_dir),
                 media_type="application/pdf",
                 headers={
                     "Content-Disposition": f'attachment; filename="{review_id}.pdf"'
@@ -323,7 +415,12 @@ def create_app(
         evidence = [by_id[evidence_id] for evidence_id in payload.evidence_ids]
         if any(item["redaction_status"] not in {"reviewed", "redacted"} for item in evidence):
             raise HTTPException(422, "Each selected evidence item must be reviewed.")
-        handoff = connector.prepare_handoff(review, evidence)
+        handoff = connector.prepare_handoff(
+            review,
+            evidence,
+            artifact_dir=database.artifact_dir,
+            package_dir=database.artifact_dir / "handoffs",
+        )
         database.create_handoff_batch(
             handoff.batch_id,
             review_id,
@@ -336,6 +433,8 @@ def create_app(
             "batch_id": handoff.batch_id,
             "prompt": handoff.prompt,
             "manifest": handoff.manifest,
+            "screenshot_count": handoff.screenshot_count,
+            "package_url": f"/api/handoffs/{handoff.batch_id}/package",
         }
 
     @app.get("/api/handoffs/{batch_id}")
@@ -364,7 +463,41 @@ def create_app(
                 ),
             }
             for evidence_id in batch["evidence_ids"]
+            if evidence_id in evidence
         ]
+
+    @app.get("/api/handoffs/{batch_id}/package")
+    def download_handoff_package(batch_id: str) -> FileResponse:
+        batch = database.get_handoff_batch(batch_id)
+        if batch is None:
+            raise HTTPException(404, "Handoff batch was not found.")
+        handoffs_dir = database.artifact_dir / "handoffs"
+        package_path = (handoffs_dir / f"{batch_id}.zip").resolve()
+        root = handoffs_dir.resolve()
+        if root not in package_path.parents or not package_path.is_file():
+            all_evidence = {
+                item["evidence_id"]: item
+                for item in database.list_evidence(str(batch["review_id"]))
+            }
+            evidence = [
+                all_evidence[evidence_id]
+                for evidence_id in batch["evidence_ids"]
+                if evidence_id in all_evidence
+            ]
+            write_handoff_package(
+                package_path,
+                prompt=str(batch["prompt_text"]),
+                manifest=dict(batch["manifest"]),
+                evidence=evidence,
+                artifact_dir=database.artifact_dir,
+            )
+        if not package_path.is_file():
+            raise HTTPException(404, "Handoff package was not found.")
+        return FileResponse(
+            package_path,
+            media_type="application/zip",
+            filename=f"{batch_id}.zip",
+        )
 
     @app.post("/api/handoffs/{batch_id}/imports")
     def import_companion_response(
@@ -402,12 +535,67 @@ def create_app(
         if not payload.confirmed:
             raise HTTPException(
                 422,
-                "Confirm that you authorize headless capture of the review website.",
+                "Confirm that you authorize Clariti to capture the review website.",
             )
         review = database.get_review(review_id)
         if review is None:
             raise HTTPException(404, "Review was not found.")
         website = str(review["website"])
+
+        if payload.mode in {"hitl", "sitemap"}:
+            kind = "sitemap" if payload.mode == "sitemap" else "indicators"
+            try:
+                job = await hitl_jobs.start(review_id, website, kind=kind)
+            except NetworkPolicyError as error:
+                raise HTTPException(422, str(error)) from error
+            except RuntimeError as error:
+                raise HTTPException(409, str(error)) from error
+            except Exception as error:
+                raise HTTPException(
+                    502, f"HITL capture failed to start: {error.__class__.__name__}."
+                ) from error
+            snap = job.snapshot()
+            if job.session.status == "failed":
+                raise HTTPException(
+                    502,
+                    job.session.error or "HITL capture failed to open the browser.",
+                )
+            message = (
+                "A headed browser opened for full sitemap scrape. Complete Cloudflare, "
+                "consent, or login yourself, then click Continue. If another challenge "
+                "appears mid-crawl, Continue again. Clariti does not bypass those controls."
+                if kind == "sitemap"
+                else (
+                    "A headed browser window opened. Complete Cloudflare, consent, "
+                    "or login yourself if needed, then click Continue. Clariti does "
+                    "not bypass those controls."
+                )
+            )
+            return {
+                "mode": payload.mode,
+                "kind": kind,
+                "status": snap["status"],
+                "hint": snap.get("hint"),
+                "page_url": snap.get("page_url"),
+                "page_title": snap.get("page_title"),
+                "message": message,
+            }
+
+        if payload.mode == "sitemap_headless":
+            try:
+                site_result = await capture_full_site(website, headless=True)
+            except NetworkPolicyError as error:
+                raise HTTPException(422, str(error)) from error
+            except RuntimeError as error:
+                raise HTTPException(503, str(error)) from error
+            except Exception as error:
+                raise HTTPException(
+                    502, f"Sitemap capture failed: {error.__class__.__name__}."
+                ) from error
+            payload_out = store_site_capture_result(review_id, site_result)
+            payload_out["mode"] = "sitemap_headless"
+            return payload_out
+
         try:
             result = await capture_privacy_indicators(website)
         except NetworkPolicyError as error:
@@ -418,34 +606,83 @@ def create_app(
             raise HTTPException(
                 502, f"Website capture failed: {error.__class__.__name__}."
             ) from error
+        payload_out = store_capture_result(review_id, result)
+        payload_out["mode"] = "headless"
+        return payload_out
 
-        evidence_ids: list[str] = []
-        summary_id = add_rendered_text_evidence(
-            database,
-            review_id,
-            result.summary_text,
-            result.final_url,
-            result.limitations,
-        )
-        evidence_ids.append(summary_id)
-        for shot in result.shots:
-            note = f"{shot.note} {result.limitations}".strip()
-            evidence_ids.append(
-                add_bytes_screenshot_evidence(
-                    database,
-                    review_id,
-                    shot.png_bytes,
-                    shot.source_url,
-                    note,
-                )
+    @app.get("/api/reviews/{review_id}/capture/status")
+    def capture_status(review_id: str) -> dict[str, object]:
+        if database.get_review(review_id) is None:
+            raise HTTPException(404, "Review was not found.")
+        job = hitl_jobs.get(review_id)
+        if job is None:
+            return {"status": "idle", "review_id": review_id}
+        return job.snapshot()
+
+    @app.post("/api/reviews/{review_id}/capture/continue")
+    async def capture_continue(review_id: str, request: Request) -> dict[str, object]:
+        require_state_change_protection(request)
+        if database.get_review(review_id) is None:
+            raise HTTPException(404, "Review was not found.")
+        try:
+            job = await hitl_jobs.continue_job(review_id)
+        except KeyError as error:
+            raise HTTPException(404, str(error)) from error
+        except RuntimeError as error:
+            raise HTTPException(409, str(error)) from error
+
+        if job.session.status == "failed":
+            raise HTTPException(
+                502, job.session.error or "HITL capture failed during scan."
             )
+        if job.session.status == "cancelled":
+            raise HTTPException(409, "HITL capture was cancelled.")
+        if job.session.status == "waiting_for_human":
+            snap = job.snapshot()
+            return {
+                "mode": "sitemap" if job.kind == "sitemap" else "hitl",
+                "kind": job.kind,
+                "status": "waiting_for_human",
+                "hint": snap.get("hint"),
+                "page_url": snap.get("page_url"),
+                "page_title": snap.get("page_title"),
+                "message": (
+                    "Another Cloudflare/login challenge appeared during the crawl. "
+                    "Complete it in the browser, then click Continue again."
+                ),
+            }
+        if job.session.status != "completed":
+            raise HTTPException(502, "HITL capture did not complete.")
+
+        site_result = getattr(job.session, "site_result", None)
+        if site_result is not None:
+            stored = store_site_capture_result(review_id, site_result)
+            mode = "sitemap"
+        elif job.session.result is not None:
+            stored = store_capture_result(review_id, job.session.result)
+            mode = "hitl"
+        else:
+            raise HTTPException(502, "HITL capture produced no result.")
+
+        job.evidence_payload = stored
+        hitl_jobs.clear(review_id)
         return {
-            "final_url": result.final_url,
-            "page_title": result.page_title,
-            "evidence_ids": evidence_ids,
-            "screenshot_count": len(result.shots),
-            "limitations": result.limitations,
+            "mode": mode,
+            "kind": job.kind,
+            "status": "completed",
+            **stored,
         }
+
+    @app.post("/api/reviews/{review_id}/capture/cancel")
+    async def capture_cancel(review_id: str, request: Request) -> dict[str, object]:
+        require_state_change_protection(request)
+        if database.get_review(review_id) is None:
+            raise HTTPException(404, "Review was not found.")
+        job = await hitl_jobs.cancel(review_id)
+        hitl_jobs.clear(review_id)
+        if job is None:
+            return {"status": "idle", "review_id": review_id}
+        return {"status": "cancelled", "review_id": review_id}
 
     @app.post("/api/reviews/{review_id}/evidence/text")
     def add_text(

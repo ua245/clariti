@@ -57,12 +57,41 @@
 
       <div class="stack capture-box">
         <h3>Auto scan</h3>
-        <p class="hint">Opens the review URL in a headless browser, scrolls for privacy / cookie / consent / newsletter indicators, and saves screenshots plus a findings summary.</p>
+        <p class="hint">Opens the review URL, scrolls for privacy / cookie / consent / newsletter indicators, and saves screenshots plus a findings summary.</p>
+        <fieldset class="capture-mode">
+          <legend>Capture mode</legend>
+          <label class="checkbox">
+            <input type="radio" name="capture-mode" value="sitemap" checked>
+            Full sitemap scrape (headed) — complete Cloudflare/login, then crawl
+          </label>
+          <label class="checkbox">
+            <input type="radio" name="capture-mode" value="hitl">
+            Homepage only (headed) — Cloudflare/login then indicator scan
+          </label>
+          <label class="checkbox">
+            <input type="radio" name="capture-mode" value="headless">
+            Homepage only (headless)
+          </label>
+          <label class="checkbox">
+            <input type="radio" name="capture-mode" value="sitemap_headless">
+            Full sitemap scrape (headless) — only if the site has no CF/auth wall
+          </label>
+        </fieldset>
+        <p class="hint">
+          Default sitemap mode opens a visible browser. Complete Cloudflare/login yourself,
+          then Continue; the crawl reuses that session. If another challenge appears mid-crawl,
+          Continue again. Clariti does not bypass those controls.
+        </p>
         <label class="checkbox">
           <input id="capture-confirmation" type="checkbox">
           I authorize Clariti to visit this review website and store local screenshots/text.
         </label>
-        <button id="capture-website" type="button">Scan website for privacy indicators</button>
+        <div class="button-row">
+          <button id="capture-website" type="button">Scan website for privacy indicators</button>
+          <button id="capture-continue" type="button" class="secondary" hidden>Continue after human step</button>
+          <button id="capture-cancel" type="button" class="secondary" hidden>Cancel HITL capture</button>
+        </div>
+        <p id="capture-hitl-status" class="meta" hidden></p>
       </div>
 
       <details>
@@ -122,7 +151,12 @@
         <div class="button-row">
           <button id="prepare-handoff" type="button">Prepare handoff</button>
           <button id="copy-prompt" type="button" class="secondary">Copy prompt</button>
-          <button id="download-attachments" type="button" class="secondary">Download files</button>
+          <button id="download-package" type="button" class="secondary">
+            Download package (prompt + screenshots)
+          </button>
+          <button id="download-attachments" type="button" class="secondary">
+            Download screenshots separately
+          </button>
         </div>
         <label for="handoff-prompt">Review prompt</label>
         <textarea id="handoff-prompt" rows="6" readonly></textarea>

@@ -3,6 +3,17 @@
 ## Permanent constraints
 
 - Run locally on Windows, macOS, or Linux with Python 3.10+ and project-local `.venv`.
+- Playwright Chromium lives in project-local `.playwright/` via
+  `PLAYWRIGHT_BROWSERS_PATH`. Never call `playwright install-deps` or sudo;
+  capture must run as a normal (non-Administrator/root) user.
+- Never launch Chromium with `--no-sandbox` / LAN-probe features that trip
+  device-admin, MDM, or public/private network firewall prompts. Use
+  `app/security_runtime.py` launch helpers only.
+- Capture targets must be public HTTPS :443 on the review host allowlist;
+  private, loopback, link-local, `.local`/`.corp`/`.lan`, and non-443 ports
+  are blocked so local/admin networks are never scanned.
+- HITL capture may open a headed browser so a human can complete Cloudflare,
+  consent, or authorized login gates. Never automate bypass of those controls.
 - Bind the application only to `127.0.0.1`; never enable permissive CORS.
 - Do not log captured content, personal data, credentials, or secrets.
 - Use parameterized SQLite queries. Treat all captured/imported content as untrusted text.
@@ -26,10 +37,12 @@
 ## Commands
 
 ```bash
-python3 run.py          # any OS
+python3 -m app.install  # library install: venv, deps, Chromium (no sudo)
+python3 run.py          # any OS (calls app.install.bootstrap)
 ./run.sh                # macOS / Linux
 run.bat                 # Windows
 .venv/bin/python -m pytest
+.venv/bin/python -m app.headless https://example.com --json-summary --package /tmp/h.zip
 ```
 
 ## Recovery

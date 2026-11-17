@@ -6,6 +6,8 @@ DATA_DIR = ROOT_DIR / "data"
 ARTIFACT_DIR = DATA_DIR / "artifacts"
 DATABASE_PATH = DATA_DIR / "clariti.sqlite3"
 STATIC_DIR = Path(__file__).resolve().parent / "ui" / "static"
+# Project-local Playwright browsers (user-writable; no sudo / install-deps).
+PLAYWRIGHT_BROWSERS_DIR = ROOT_DIR / ".playwright"
 
 DEFAULT_COMPANION_NAME = "Clariti Web Evidence Reviewer"
 DEFAULT_COMPANION_URL = (

@@ -44,3 +44,44 @@ only. Destination checks require HTTPS, the review host allowlist (including
 www/apex twin), and public resolvable addresses. Capture scrolls for common
 privacy/cookie/consent/newsletter indicators and stores local screenshots plus
 a text summary. It does not follow off-host links or automate Companion chat.
+
+## 2026-11-17: User-local Playwright browsers (no admin)
+
+Install Chromium with `playwright install chromium` into project-local
+`.playwright/` (`PLAYWRIGHT_BROWSERS_PATH`). Do not run `install-deps` /
+`--with-deps` from Clariti; those require elevated OS privileges. The launcher
+verifies a headless launch after download and fails with a non-sudo remediation
+message if shared libraries are missing.
+
+## 2026-11-17: HITL capture for interactive gates
+
+When headless capture is blocked by Cloudflare interstitials, consent walls, or
+an authorized login, Clariti offers a human-assisted headed session: open the
+review URL, pause for the reviewer to complete the gate themselves, then resume
+the same privacy-indicator scan with that live browser context. Clariti must
+not automate Cloudflare challenge solving, Turnstile forging, WAF evasion, or
+credential theft. Cookies stay in the live context only (not persisted).
+
+## 2026-11-17: Full sitemap scrape + legal companion prompt + PDF screenshots
+
+Sitemap mode discovers on-host sitemaps via robots.txt and common paths, parses
+nested indexes with depth/size caps, stores static HTML text extracts (scripts
+stripped), and takes prioritized headed/headless screenshots plus a homepage
+indicator scan. The Companion handoff uses the Clariti Legal Companion system
+prompt. Draft/final PDFs embed every screenshot artifact. Headless CLI
+`python3 -m app.headless` prints the prompt for chat paste.
+
+## 2026-11-17: Handoff zip includes screenshots; install lives in app library
+
+Companion handoff packages are zip files containing `prompt.txt`, `manifest.json`,
+`screenshots/*`, and `text/*`. UI and headless expose the package for upload.
+Install/bootstrap logic lives in `app/install.py` (`python3 -m app.install`);
+`run.py` is a thin launcher wrapper.
+
+## 2026-11-17: No device-admin / public-private network policy triggers
+
+Clariti refuses elevated (Administrator/root) processes, binds only to
+`127.0.0.1`, keeps Playwright browsers project-local, never runs
+`install-deps`/`sudo`, and launches Chromium with sandbox enabled plus flags
+that disable private/local-network access permission prompts. Outbound capture
+allows only public HTTPS :443 on the review allowlist (no private/LAN/.local).

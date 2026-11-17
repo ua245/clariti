@@ -249,6 +249,17 @@ aside ul {
   margin-top: 0;
 }
 
+.capture-mode {
+  border: 0;
+  margin: 0 0 0.5rem;
+  padding: 0;
+}
+
+.capture-mode legend {
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+}
+
 button:disabled {
   opacity: 0.55;
   cursor: wait;

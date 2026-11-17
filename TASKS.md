@@ -26,5 +26,8 @@
 ## Milestone 4: Retrieval and integrations
 
 - [x] Add constrained headless-browser capture for privacy indicators.
-- [ ] Complete safe sitemap ingestion and static HTTP evidence capture (parser and policy primitives added).
+- [x] Add HITL headed capture for Cloudflare / login walls (human completes gates).
+- [x] Complete safe sitemap ingestion and static HTTP evidence capture (parser and policy primitives added).
+- [x] Full sitemap scrape mode + headless CLI companion prompt output.
+- [x] PDF export embeds all screenshots.
 - [ ] Add verified, constrained SiteOne adapter.

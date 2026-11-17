@@ -155,11 +155,16 @@ def add_rendered_text_evidence(
     text: str,
     source_url: str | None,
     limitations: str,
+    *,
+    capture_method: str = "rendered",
+    http_status: int | None = None,
 ) -> str:
     if not text.strip():
         raise HTTPException(422, "Evidence text must not be empty.")
     if len(text) > MAX_TEXT_LENGTH:
         raise HTTPException(422, f"Evidence text exceeds {MAX_TEXT_LENGTH} characters.")
+    if capture_method not in {"manual", "static", "rendered"}:
+        raise HTTPException(422, "Unsupported capture method.")
     evidence_id = new_evidence_id()
     database.create_evidence(
         {
@@ -168,12 +173,12 @@ def add_rendered_text_evidence(
             "requested_url": source_url,
             "final_url": source_url,
             "captured_at_utc": utc_now(),
-            "capture_method": "rendered",
+            "capture_method": capture_method,
             "evidence_type": "text",
             "text_content": text,
             "artifact_path": None,
             "sha256": None,
-            "http_status": None,
+            "http_status": http_status,
             "limitations": limitations,
             "redaction_status": "reviewed",
             "original_evidence_id": None,

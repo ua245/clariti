@@ -1,4 +1,6 @@
 .venv/
+.playwright/
+.playwright-profile/
 __pycache__/
 .pytest_cache/
 data/

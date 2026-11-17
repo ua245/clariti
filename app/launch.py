@@ -6,9 +6,11 @@ import webbrowser
 import uvicorn
 
 from app.config import HOST, PORT
+from app.security_runtime import bootstrap_security_checks
 
 
 def open_browser_after_startup() -> None:
+    # Loopback-only UI; never advertise on LAN / public-private network profiles.
     health_url = f"http://{HOST}:{PORT}/health"
     for _ in range(40):
         try:
@@ -21,6 +23,7 @@ def open_browser_after_startup() -> None:
 
 
 def main() -> None:
+    bootstrap_security_checks()
     threading.Thread(target=open_browser_after_startup, daemon=True).start()
     uvicorn.run("app.main:app", host=HOST, port=PORT)
 
